@@ -504,6 +504,20 @@ select:focus-visible {
   border-bottom: 0;
 }
 
+.line.is-new {
+  animation: line-flash 1.6s ease-out;
+}
+
+@keyframes line-flash {
+  0%,
+  35% {
+    background: var(--cobalt-soft);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
 .line-top {
   display: flex;
   align-items: center;

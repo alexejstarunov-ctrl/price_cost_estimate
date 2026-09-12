@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Estimate, EstimateLine } from '../types'
 import { type Totals, formatRub, lineSum } from '../lib/estimate'
 import { REGIONS } from '../data/regions'
@@ -11,6 +11,7 @@ import type { InstallMode } from '../App'
 type Props = {
   estimate: Estimate
   totals: Totals
+  highlightId: string | null
   installMode: InstallMode
   onInstall: () => void
   onUpdate: (patch: Partial<Estimate>) => void
@@ -30,6 +31,7 @@ const DISMISS_KEY = 'pce.installDismissed'
 export default function EstimateView({
   estimate,
   totals,
+  highlightId,
   installMode,
   onInstall,
   onUpdate,
@@ -52,6 +54,13 @@ export default function EstimateView({
       return false
     }
   })
+
+  useEffect(() => {
+    if (!highlightId) return
+    document
+      .querySelector(`[data-line-id="${highlightId}"]`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [highlightId])
 
   const dismissInstall = () => {
     setInstallDismissed(true)
@@ -179,10 +188,10 @@ export default function EstimateView({
       ) : (
         <>
           {works.length > 0 && (
-            <LineGroup title="Работы" sum={totals.works} lines={works} onPatchLine={onPatchLine} onRemoveLine={onRemoveLine} />
+            <LineGroup title="Работы" sum={totals.works} lines={works} highlightId={highlightId} onPatchLine={onPatchLine} onRemoveLine={onRemoveLine} />
           )}
           {materials.length > 0 && (
-            <LineGroup title="Материалы" sum={totals.materials} lines={materials} onPatchLine={onPatchLine} onRemoveLine={onRemoveLine} />
+            <LineGroup title="Материалы" sum={totals.materials} lines={materials} highlightId={highlightId} onPatchLine={onPatchLine} onRemoveLine={onRemoveLine} />
           )}
 
           <div className="btn-row">
@@ -292,12 +301,14 @@ function LineGroup({
   title,
   sum,
   lines,
+  highlightId,
   onPatchLine,
   onRemoveLine,
 }: {
   title: string
   sum: number
   lines: EstimateLine[]
+  highlightId: string | null
   onPatchLine: Props['onPatchLine']
   onRemoveLine: Props['onRemoveLine']
 }) {
@@ -308,7 +319,7 @@ function LineGroup({
         <span className="card-head-sum">{formatRub(sum)}</span>
       </div>
       {lines.map((line) => (
-        <div className="line" key={line.id}>
+        <div className={line.id === highlightId ? 'line is-new' : 'line'} data-line-id={line.id} key={line.id}>
           <div className="line-top">
             <LineName value={line.name} onChange={(name) => onPatchLine(line.id, { name })} />
             {line.auto && <span className="tag tag-auto">расчёт</span>}

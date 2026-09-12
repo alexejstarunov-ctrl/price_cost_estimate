@@ -83,7 +83,9 @@ function App() {
   const [customOpen, setCustomOpen] = useState(false)
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null)
   const [toast, setToast] = useState('')
+  const [highlightId, setHighlightId] = useState<string | null>(null)
   const toastTimer = useRef<number>()
+  const highlightTimer = useRef<number>()
 
   const estimate = estimates.find((e) => e.id === currentId) ?? estimates[0]
 
@@ -138,14 +140,22 @@ function App() {
 
   const update = (patch: Partial<Estimate>) => patchEstimate(estimate.id, (e) => ({ ...e, ...patch }))
 
-  const addLines = (lines: Omit<EstimateLine, 'id'>[]) =>
-    patchEstimate(estimate.id, (e) => ({
-      ...e,
-      lines: [...e.lines, ...lines.map((l) => ({ ...l, id: uid() }))],
-    }))
+  const addLines = (lines: Omit<EstimateLine, 'id'>[]): string[] => {
+    const withIds = lines.map((l) => ({ ...l, id: uid() }))
+    patchEstimate(estimate.id, (e) => ({ ...e, lines: [...e.lines, ...withIds] }))
+    return withIds.map((l) => l.id)
+  }
+
+  /** Возврат в смету с подсветкой только что добавленной строки */
+  const showInEstimate = (lineId: string) => {
+    setHighlightId(lineId)
+    window.clearTimeout(highlightTimer.current)
+    highlightTimer.current = window.setTimeout(() => setHighlightId(null), 1800)
+    setTab('estimate')
+  }
 
   const addFromCatalog = (item: WorkItem, qty: number, price: number) => {
-    addLines([
+    const [id] = addLines([
       {
         refId: item.id,
         name: item.name,
@@ -157,6 +167,7 @@ function App() {
     ])
     setPending(null)
     notify(`Добавлено: ${item.name}`)
+    showInEstimate(id)
   }
 
   const saveCustom = (next: WorkItem[]) => {
@@ -165,7 +176,7 @@ function App() {
   }
 
   const addCustomLine = (line: Omit<EstimateLine, 'id'>, remember: boolean) => {
-    addLines([line])
+    const [id] = addLines([line])
     if (remember) {
       saveCustom([
         ...custom,
@@ -181,8 +192,8 @@ function App() {
       ])
     }
     setCustomOpen(false)
-    setTab('estimate')
     notify(remember ? `Добавлено и запомнено: ${line.name}` : `Добавлено: ${line.name}`)
+    showInEstimate(id)
   }
 
   /** Расчётные материалы заменяют предыдущий расчёт, а не дублируют его */
@@ -319,6 +330,7 @@ function App() {
         <EstimateView
           estimate={estimate}
           totals={totals}
+          highlightId={highlightId}
           installMode={installMode}
           onInstall={install}
           onUpdate={update}
