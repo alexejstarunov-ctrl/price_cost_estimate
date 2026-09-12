@@ -4,35 +4,63 @@ import { type Totals, formatRub, lineSum } from '../lib/estimate'
 import { REGIONS } from '../data/regions'
 import NumField from './NumField'
 import ConfirmButton from './ConfirmButton'
+import InstallHint from './InstallHint'
 import { IconClose } from './Icons'
+import type { InstallMode } from '../App'
 
 type Props = {
   estimate: Estimate
   totals: Totals
+  installMode: InstallMode
+  onInstall: () => void
   onUpdate: (patch: Partial<Estimate>) => void
   onPatchLine: (id: string, patch: Partial<EstimateLine>) => void
   onRemoveLine: (id: string) => void
   onAddClick: () => void
+  onCustomClick: () => void
   onMaterialsClick: () => void
+  onPdf: () => void
   onSaveTemplate: (name: string) => void
   onNew: () => void
   notify: (message: string) => void
 }
 
+const DISMISS_KEY = 'pce.installDismissed'
+
 export default function EstimateView({
   estimate,
   totals,
+  installMode,
+  onInstall,
   onUpdate,
   onPatchLine,
   onRemoveLine,
   onAddClick,
+  onCustomClick,
   onMaterialsClick,
+  onPdf,
   onSaveTemplate,
   onNew,
   notify,
 }: Props) {
   const [showClient, setShowClient] = useState(Boolean(estimate.client || estimate.address))
   const [templateName, setTemplateName] = useState<string | null>(null)
+  const [installDismissed, setInstallDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(DISMISS_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const dismissInstall = () => {
+    setInstallDismissed(true)
+    try {
+      localStorage.setItem(DISMISS_KEY, '1')
+    } catch {
+      // без хранилища подсказка просто вернётся в следующий раз
+    }
+  }
 
   const handleShare = async () => {
     const text = buildShareText(estimate, totals)
@@ -65,6 +93,8 @@ export default function EstimateView({
 
   return (
     <div className="section no-print">
+      {!installDismissed && <InstallHint mode={installMode} onInstall={onInstall} onDismiss={dismissInstall} />}
+
       <div className="card">
         <div className="card-head">
           <h2>Объект</h2>
@@ -132,13 +162,16 @@ export default function EstimateView({
         <div className="card">
           <div className="empty">
             <strong>Смета пуста</strong>
-            <p>Добавьте работы из расценок или посчитайте материалы по размерам плитки.</p>
+            <p>Добавьте работы из расценок, посчитайте материалы по размерам плитки или впишите свою позицию.</p>
             <div className="btn-row">
               <button className="btn btn-primary" onClick={onAddClick}>
                 Открыть расценки
               </button>
               <button className="btn" onClick={onMaterialsClick}>
                 Посчитать материалы
+              </button>
+              <button className="btn" onClick={onCustomClick}>
+                Своя позиция
               </button>
             </div>
           </div>
@@ -152,9 +185,14 @@ export default function EstimateView({
             <LineGroup title="Материалы" sum={totals.materials} lines={materials} onPatchLine={onPatchLine} onRemoveLine={onRemoveLine} />
           )}
 
-          <button className="btn btn-block btn-dashed" onClick={onAddClick}>
-            + Добавить позицию
-          </button>
+          <div className="btn-row">
+            <button className="btn btn-dashed" onClick={onAddClick}>
+              + Из расценок
+            </button>
+            <button className="btn btn-dashed" onClick={onCustomClick}>
+              + Своя позиция
+            </button>
+          </div>
 
           <div className="card">
             <div className="totals">
@@ -200,7 +238,7 @@ export default function EstimateView({
           </div>
 
           <div className="btn-row">
-            <button className="btn btn-primary" onClick={() => window.print()}>
+            <button className="btn btn-primary" onClick={onPdf}>
               Скачать PDF
             </button>
             <button className="btn" onClick={handleShare}>

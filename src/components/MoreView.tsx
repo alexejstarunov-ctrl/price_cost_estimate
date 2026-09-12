@@ -7,7 +7,10 @@ import { CATEGORIES } from '../data/works'
 import { PRESET_TEMPLATES } from '../data/templates'
 import NumField from './NumField'
 import ConfirmButton from './ConfirmButton'
+import InstallHint from './InstallHint'
+import { UNITS } from './CustomSheet'
 import { IconClose } from './Icons'
+import type { InstallMode } from '../App'
 
 type Props = {
   currentId: string
@@ -16,6 +19,8 @@ type Props = {
   custom: WorkItem[]
   company: CompanyInfo
   feed: PriceState
+  installMode: InstallMode
+  onInstall: () => void
   onNew: () => void
   onOpen: (id: string) => void
   onDelete: (id: string) => void
@@ -26,8 +31,6 @@ type Props = {
   onUpdateCompany: (info: CompanyInfo) => void
 }
 
-const UNITS: Unit[] = ['м²', 'п.м', 'шт', 'компл', 'меш', 'кг', 'л', 'точка']
-
 const STATUS_LABEL = { ok: 'собрано', blocked: 'блокировка', skipped: 'выключен' } as const
 
 export default function MoreView({
@@ -37,6 +40,8 @@ export default function MoreView({
   custom,
   company,
   feed,
+  installMode,
+  onInstall,
   onNew,
   onOpen,
   onDelete,
@@ -66,6 +71,8 @@ export default function MoreView({
 
   return (
     <div className="section no-print">
+      <InstallHint mode={installMode} onInstall={onInstall} />
+
       <div className="card">
         <div className="card-head">
           <h2>Мои сметы</h2>

@@ -4,6 +4,13 @@ import { fetchPriceFeed, mergePrices, type PriceFeed, type PriceState } from './
 import { calcTotals, formatRub } from './lib/estimate'
 import { DEFAULT_REGION, getRegion } from './data/regions'
 import {
+  isIos,
+  isStandalone,
+  printUrl,
+  readPrintPayload,
+  type InstallPromptEvent,
+} from './lib/platform'
+import {
   loadCompany,
   loadCurrentId,
   loadCustomPrices,
@@ -22,8 +29,12 @@ import CatalogView from './components/CatalogView'
 import MaterialsView from './components/MaterialsView'
 import MoreView from './components/MoreView'
 import PrintView from './components/PrintView'
+import PrintRoute from './components/PrintRoute'
 import AddSheet from './components/AddSheet'
+import CustomSheet from './components/CustomSheet'
 import { IconCatalog, IconEstimate, IconMaterials, IconMore } from './components/Icons'
+
+export type InstallMode = 'android' | 'ios' | 'none'
 
 type Tab = 'estimate' | 'catalog' | 'materials' | 'more'
 
@@ -33,6 +44,8 @@ const TABS: { id: Tab; label: string; Icon: () => JSX.Element }[] = [
   { id: 'materials', label: 'Материалы', Icon: IconMaterials },
   { id: 'more', label: 'Ещё', Icon: IconMore },
 ]
+
+const printPayload = readPrintPayload()
 
 function newEstimate(region = DEFAULT_REGION): Estimate {
   const now = new Date().toISOString()
@@ -51,7 +64,11 @@ function newEstimate(region = DEFAULT_REGION): Estimate {
   }
 }
 
-export default function App() {
+export default function Root() {
+  return printPayload ? <PrintRoute payload={printPayload} /> : <App />
+}
+
+function App() {
   const [tab, setTab] = useState<Tab>('estimate')
   const [estimates, setEstimates] = useState<Estimate[]>(() => {
     const saved = loadEstimates()
@@ -63,6 +80,8 @@ export default function App() {
   const [company, setCompany] = useState<CompanyInfo>(loadCompany)
   const [rawFeed, setRawFeed] = useState<PriceFeed | null>(null)
   const [pending, setPending] = useState<WorkItem | null>(null)
+  const [customOpen, setCustomOpen] = useState(false)
+  const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null)
   const [toast, setToast] = useState('')
   const toastTimer = useRef<number>()
 
@@ -79,6 +98,15 @@ export default function App() {
 
   useEffect(() => {
     fetchPriceFeed().then(setRawFeed)
+  }, [])
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault()
+      setInstallEvent(e as InstallPromptEvent)
+    }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
   }, [])
 
   const notify = (message: string) => {
@@ -129,6 +157,32 @@ export default function App() {
     ])
     setPending(null)
     notify(`Добавлено: ${item.name}`)
+  }
+
+  const saveCustom = (next: WorkItem[]) => {
+    setCustom(next)
+    saveCustomPrices(next)
+  }
+
+  const addCustomLine = (line: Omit<EstimateLine, 'id'>, remember: boolean) => {
+    addLines([line])
+    if (remember) {
+      saveCustom([
+        ...custom,
+        {
+          id: line.refId,
+          name: line.name,
+          unit: line.unit,
+          category: line.kind === 'material' ? 'Материалы' : 'Дополнительные работы',
+          price: line.price,
+          source: 'manual',
+          updatedAt: new Date().toISOString(),
+        },
+      ])
+    }
+    setCustomOpen(false)
+    setTab('estimate')
+    notify(remember ? `Добавлено и запомнено: ${line.name}` : `Добавлено: ${line.name}`)
   }
 
   /** Расчётные материалы заменяют предыдущий расчёт, а не дублируют его */
@@ -204,22 +258,42 @@ export default function App() {
   }
 
   const upsertCustom = (item: WorkItem) => {
-    const next = [...custom.filter((c) => c.id !== item.id), item]
-    setCustom(next)
-    saveCustomPrices(next)
+    saveCustom([...custom.filter((c) => c.id !== item.id), item])
     notify(`В каталоге: ${item.name}`)
   }
 
-  const removeCustom = (id: string) => {
-    const next = custom.filter((c) => c.id !== id)
-    setCustom(next)
-    saveCustomPrices(next)
-  }
+  const removeCustom = (id: string) => saveCustom(custom.filter((c) => c.id !== id))
 
   const updateCompany = (info: CompanyInfo) => {
     setCompany(info)
     saveCompany(info)
   }
+
+  const openPdf = () => {
+    if (isIos() && isStandalone()) {
+      window.open(printUrl({ estimate, company }), '_blank')
+    } else {
+      window.print()
+    }
+  }
+
+  const install = async () => {
+    if (!installEvent) return
+    await installEvent.prompt()
+    const { outcome } = await installEvent.userChoice
+    if (outcome === 'accepted') {
+      setInstallEvent(null)
+      notify('Приложение установлено')
+    }
+  }
+
+  const installMode: InstallMode = isStandalone()
+    ? 'none'
+    : installEvent
+      ? 'android'
+      : isIos()
+        ? 'ios'
+        : 'none'
 
   const inEstimate = useMemo(() => {
     const m = new Map<string, number>()
@@ -245,11 +319,15 @@ export default function App() {
         <EstimateView
           estimate={estimate}
           totals={totals}
+          installMode={installMode}
+          onInstall={install}
           onUpdate={update}
           onPatchLine={patchLine}
           onRemoveLine={removeLine}
           onAddClick={() => setTab('catalog')}
+          onCustomClick={() => setCustomOpen(true)}
           onMaterialsClick={() => setTab('materials')}
+          onPdf={openPdf}
           onSaveTemplate={saveAsTemplate}
           onNew={createEstimate}
           notify={notify}
@@ -263,6 +341,7 @@ export default function App() {
           inEstimate={inEstimate}
           onRegion={(region) => update({ region })}
           onPick={setPending}
+          onCustom={() => setCustomOpen(true)}
         />
       )}
 
@@ -282,6 +361,8 @@ export default function App() {
           custom={custom}
           company={company}
           feed={feed}
+          installMode={installMode}
+          onInstall={install}
           onNew={createEstimate}
           onOpen={openEstimate}
           onDelete={deleteEstimate}
@@ -302,6 +383,8 @@ export default function App() {
           onAdd={(qty, price) => addFromCatalog(pending, qty, price)}
         />
       )}
+
+      {customOpen && <CustomSheet onClose={() => setCustomOpen(false)} onAdd={addCustomLine} />}
 
       {toast && (
         <div className="toast no-print" role="status">

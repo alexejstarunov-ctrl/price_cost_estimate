@@ -11,11 +11,12 @@ type Props = {
   inEstimate: Map<string, number>
   onRegion: (region: string) => void
   onPick: (item: WorkItem) => void
+  onCustom: () => void
 }
 
 const normalize = (s: string) => s.toLowerCase().replace(/ё/g, 'е')
 
-export default function CatalogView({ works, region, inEstimate, onRegion, onPick }: Props) {
+export default function CatalogView({ works, region, inEstimate, onRegion, onPick, onCustom }: Props) {
   const [query, setQuery] = useState('')
 
   const groups = useMemo(() => {
@@ -52,7 +53,10 @@ export default function CatalogView({ works, region, inEstimate, onRegion, onPic
           <div className="card">
             <div className="empty">
               <strong>Ничего не найдено</strong>
-              <p>Проверьте написание или заведите свою расценку во вкладке «Ещё».</p>
+              <p>Проверьте написание или впишите позицию со своей ценой.</p>
+              <button className="btn btn-primary" onClick={onCustom}>
+                Своя позиция
+              </button>
             </div>
           </div>
         ) : (
@@ -88,6 +92,12 @@ export default function CatalogView({ works, region, inEstimate, onRegion, onPic
               })}
             </div>
           ))
+        )}
+
+        {groups.length > 0 && (
+          <button className="btn btn-block btn-dashed" onClick={onCustom}>
+            + Нет в списке — своя позиция с ценой
+          </button>
         )}
 
         <p className="hint">

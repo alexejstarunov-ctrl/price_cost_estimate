@@ -72,7 +72,7 @@ export default function AddSheet({ item, onClose, onAdd }: Props) {
             Отмена
           </button>
           <button type="submit" className="btn btn-primary" disabled={!canAdd}>
-            Добавить в смету
+            Добавить
           </button>
         </div>
       </form>

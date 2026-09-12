@@ -8,21 +8,24 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
+        id: '/price_cost_estimate/',
         name: 'Смета на укладку плитки',
         short_name: 'Смета плитки',
         description: 'Быстрый расчёт стоимости работ и материалов по укладке плитки',
+        lang: 'ru',
         theme_color: '#17191C',
         background_color: '#F1F2F0',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/price_cost_estimate/',
         scope: '/price_cost_estimate/',
+        categories: ['business', 'productivity', 'utilities'],
         icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
