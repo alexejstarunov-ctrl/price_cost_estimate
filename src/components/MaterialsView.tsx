@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { EstimateLine, MaterialInput, WorkItem } from '../types'
 import { LAYOUT_LABELS, calcMaterials } from '../lib/materials'
 import { formatQty, formatRub } from '../lib/estimate'
+import NumField from './NumField'
 
 type Props = {
   works: WorkItem[]
@@ -35,7 +36,6 @@ export default function MaterialsView({ works, onAddLines }: Props) {
   const svpPrice = priceOf('m-svp', 500)
 
   const set = (patch: Partial<MaterialInput>) => setInput((v) => ({ ...v, ...patch }))
-  const num = (v: string) => Number(v.replace(',', '.')) || 0
 
   const materialCost =
     result.tileCost +
@@ -114,53 +114,33 @@ export default function MaterialsView({ works, onAddLines }: Props) {
           <div className="row">
             <label className="field">
               <span>Площадь, м²</span>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                inputMode="decimal"
-                value={input.area}
-                onChange={(e) => set({ area: num(e.target.value) })}
-              />
+              <NumField value={input.area} onChange={(area) => set({ area })} />
             </label>
             <label className="field">
               <span>Периметр, п.м</span>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                inputMode="decimal"
-                value={input.perimeter}
-                onChange={(e) => set({ perimeter: num(e.target.value) })}
-              />
+              <NumField value={input.perimeter} onChange={(perimeter) => set({ perimeter })} />
             </label>
           </div>
 
           <label className="field">
             <span>Размер плитки, мм</span>
             <div className="row-3">
-              <input
-                type="number"
-                min="10"
-                inputMode="numeric"
+              <NumField
                 value={input.tileWidth}
-                onChange={(e) => set({ tileWidth: num(e.target.value) })}
+                onChange={(tileWidth) => set({ tileWidth })}
+                decimals={0}
                 aria-label="Ширина плитки"
               />
-              <input
-                type="number"
-                min="10"
-                inputMode="numeric"
+              <NumField
                 value={input.tileHeight}
-                onChange={(e) => set({ tileHeight: num(e.target.value) })}
+                onChange={(tileHeight) => set({ tileHeight })}
+                decimals={0}
                 aria-label="Высота плитки"
               />
-              <input
-                type="number"
-                min="1"
-                inputMode="numeric"
+              <NumField
                 value={input.tileThickness}
-                onChange={(e) => set({ tileThickness: num(e.target.value) })}
+                onChange={(tileThickness) => set({ tileThickness })}
+                decimals={1}
                 aria-label="Толщина плитки"
               />
             </div>
@@ -170,25 +150,11 @@ export default function MaterialsView({ works, onAddLines }: Props) {
           <div className="row">
             <label className="field">
               <span>Ширина шва, мм</span>
-              <input
-                type="number"
-                min="0"
-                step="0.5"
-                inputMode="decimal"
-                value={input.jointWidth}
-                onChange={(e) => set({ jointWidth: num(e.target.value) })}
-              />
+              <NumField value={input.jointWidth} onChange={(jointWidth) => set({ jointWidth })} decimals={1} />
             </label>
             <label className="field">
               <span>Цена плитки, ₽/м²</span>
-              <input
-                type="number"
-                min="0"
-                step="50"
-                inputMode="numeric"
-                value={input.tilePrice}
-                onChange={(e) => set({ tilePrice: num(e.target.value) })}
-              />
+              <NumField value={input.tilePrice} onChange={(tilePrice) => set({ tilePrice })} decimals={0} />
             </label>
           </div>
 

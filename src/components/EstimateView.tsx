@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Estimate, EstimateLine } from '../types'
 import { type Totals, formatRub, lineSum } from '../lib/estimate'
+import NumField from './NumField'
 
 type Props = {
   estimate: Estimate
@@ -156,23 +157,16 @@ export default function EstimateView({
               </div>
               <div className="line-sum">{formatRub(lineSum(line))}</div>
               <div className="line-ctl">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  inputMode="decimal"
+                <NumField
                   value={line.qty}
-                  onChange={(e) => onPatchLine(line.id, { qty: Number(e.target.value) || 0 })}
+                  onChange={(qty) => onPatchLine(line.id, { qty })}
                   aria-label="Количество"
                 />
                 <span className="unit">{line.unit}</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="10"
-                  inputMode="numeric"
+                <NumField
                   value={line.price}
-                  onChange={(e) => onPatchLine(line.id, { price: Number(e.target.value) || 0 })}
+                  onChange={(price) => onPatchLine(line.id, { price })}
+                  decimals={0}
                   aria-label="Цена за единицу"
                 />
                 <span className="unit">₽</span>
@@ -211,13 +205,10 @@ export default function EstimateView({
             <div className="card-body" style={{ borderTop: '1px solid var(--border)' }}>
               <label className="field">
                 <span>Скидка, %</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  inputMode="numeric"
+                <NumField
                   value={estimate.discount}
-                  onChange={(e) => onUpdate({ discount: Number(e.target.value) || 0 })}
+                  onChange={(d) => onUpdate({ discount: Math.min(100, d) })}
+                  decimals={1}
                 />
               </label>
               <label className="field">

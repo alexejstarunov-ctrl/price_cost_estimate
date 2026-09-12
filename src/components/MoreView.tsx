@@ -5,6 +5,7 @@ import { SOURCE_LABELS, type PriceState } from '../lib/prices'
 import { uid, type CompanyInfo } from '../lib/storage'
 import { CATEGORIES } from '../data/works'
 import { PRESET_TEMPLATES } from '../data/templates'
+import NumField from './NumField'
 
 type Props = {
   estimate: Estimate
@@ -41,10 +42,10 @@ export default function MoreView({
   onRemoveCustom,
   onUpdateCompany,
 }: Props) {
-  const [form, setForm] = useState({ name: '', price: '', unit: 'м²' as Unit, category: CATEGORIES[1] as string })
+  const [form, setForm] = useState({ name: '', price: 0, unit: 'м²' as Unit, category: CATEGORIES[1] as string })
 
   const addCustom = () => {
-    const price = Number(form.price)
+    const price = form.price
     if (!form.name.trim() || !(price > 0)) return
     onUpsertCustom({
       id: `custom-${uid()}`,
@@ -55,7 +56,7 @@ export default function MoreView({
       source: 'manual',
       updatedAt: new Date().toISOString(),
     })
-    setForm({ name: '', price: '', unit: form.unit, category: form.category })
+    setForm({ name: '', price: 0, unit: form.unit, category: form.category })
   }
 
   return (
@@ -97,12 +98,10 @@ export default function MoreView({
           <div className="row">
             <label className="field">
               <span>Цена, ₽</span>
-              <input
-                type="number"
-                min="0"
-                inputMode="numeric"
+              <NumField
                 value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                onChange={(price) => setForm({ ...form, price })}
+                decimals={0}
               />
             </label>
             <label className="field">
