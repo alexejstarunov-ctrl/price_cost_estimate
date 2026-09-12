@@ -1,0 +1,21 @@
+{
+  "updatedAt": "2026-09-12T16:13:36.047Z",
+  "sources": [
+    {
+      "name": "Профи.ру",
+      "status": "skipped",
+      "note": "выключен: ToS Профи.ру запрещает автоматический сбор (ENABLE_PROFI=1 чтобы включить)"
+    },
+    {
+      "name": "Авито",
+      "status": "blocked",
+      "note": "HTTP 429"
+    },
+    {
+      "name": "Яндекс Услуги",
+      "status": "blocked",
+      "note": "SPA + SmartCaptcha, /search и /api закрыты в robots.txt"
+    }
+  ],
+  "prices": []
+}
