@@ -28,6 +28,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Проверить данные расценок
+        run: npm run check:prices
+
       - run: npm run build
 
       - uses: actions/configure-pages@v5

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "check:prices": "node --experimental-strip-types --no-warnings scripts/check-prices.mjs",
     "scrape": "node scripts/scrape.mjs"
   },
   "dependencies": {

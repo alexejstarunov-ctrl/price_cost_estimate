@@ -5,6 +5,10 @@
 
 **Открыть:** https://alexejstarunov-ctrl.github.io/price_cost_estimate/
 
+Владельцу: как скопировать проект, обновлять расценки с помощью LLM и публиковать —
+в [OWNER_GUIDE.md](OWNER_GUIDE.md). Инструкция для нейросети —
+[.claude/skills/update-prices/SKILL.md](.claude/skills/update-prices/SKILL.md).
+
 ## Что умеет
 
 - **Смета** — позиции, объём, цена за единицу, автоматический итог, скидка
@@ -39,9 +43,10 @@ Apple не даёт сайтам показывать системный диа�
 
 ```bash
 npm install
-npm run dev      # локальный сервер
-npm run build    # сборка в dist/
-npm run scrape   # обновить public/prices.json
+npm run dev            # локальный сервер
+npm run check:prices   # проверка данных расценок (дубли id, нули, битые ссылки)
+npm run build          # сборка в dist/
+npm run scrape         # обновить public/prices.json
 ```
 
 Стек: React 18, TypeScript, Vite, vite-plugin-pwa. Зависимостей в рантайме нет,
