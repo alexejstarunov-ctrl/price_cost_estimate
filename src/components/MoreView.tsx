@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Estimate, EstimateTemplate, Unit, WorkItem } from '../types'
-import { calcTotals, formatDate, formatRub } from '../lib/estimate'
+import { formatRub } from '../lib/estimate'
+import EstimateList from './EstimateList'
 import type { PriceState } from '../lib/prices'
 import { uid, type CompanyInfo } from '../lib/storage'
 import { CATEGORIES } from '../data/works'
@@ -29,6 +30,8 @@ type Props = {
   onUpsertCustom: (item: WorkItem) => void
   onRemoveCustom: (id: string) => void
   onUpdateCompany: (info: CompanyInfo) => void
+  onExport: () => void
+  onImport: (file: File) => void
 }
 
 const STATUS_LABEL = { ok: 'собрано', blocked: 'блокировка', skipped: 'выключен' } as const
@@ -50,6 +53,8 @@ export default function MoreView({
   onUpsertCustom,
   onRemoveCustom,
   onUpdateCompany,
+  onExport,
+  onImport,
 }: Props) {
   const [form, setForm] = useState({ name: '', price: 0, unit: 'м²' as Unit, category: CATEGORIES[1] as string })
 
@@ -67,8 +72,6 @@ export default function MoreView({
     setForm({ name: '', price: 0, unit: form.unit, category: form.category })
   }
 
-  const sorted = [...estimates].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-
   return (
     <div className="section no-print">
       <InstallHint mode={installMode} onInstall={onInstall} />
@@ -80,32 +83,7 @@ export default function MoreView({
             + Новая
           </button>
         </div>
-        {sorted.map((s) => {
-          const total = calcTotals(s).total
-          const isCurrent = s.id === currentId
-          return (
-            <div className={`list-item${isCurrent ? ' current' : ''}`} key={s.id}>
-              <button className="list-main" onClick={() => onOpen(s.id)}>
-                <span className="name">
-                  {s.title || 'Без названия'}
-                  {isCurrent && <span className="tag tag-auto">открыта</span>}
-                </span>
-                <span className="meta">
-                  {formatDate(s.updatedAt)} · {s.lines.length} поз. · {formatRub(total)}
-                  {s.client && ` · ${s.client}`}
-                </span>
-              </button>
-              <ConfirmButton
-                className="list-del"
-                armedLabel="Удалить?"
-                onConfirm={() => onDelete(s.id)}
-                aria-label={`Удалить смету ${s.title || 'без названия'}`}
-              >
-                <IconClose />
-              </ConfirmButton>
-            </div>
-          )
-        })}
+        <EstimateList estimates={estimates} currentId={currentId} onOpen={onOpen} onDelete={onDelete} />
       </div>
 
       <div className="card">
@@ -219,6 +197,36 @@ export default function MoreView({
 
       <div className="card">
         <div className="card-head">
+          <h2>Резервная копия</h2>
+        </div>
+        <div className="card-body">
+          <p className="hint" style={{ marginTop: 0, marginBottom: 12 }}>
+            Сметы, шаблоны и свои расценки хранятся в этом браузере. Копия переживёт смену
+            телефона и очистку данных сайта: скачайте файл и восстановите его на новом устройстве.
+          </p>
+          <div className="btn-row">
+            <button className="btn btn-primary" onClick={onExport}>
+              Скачать копию
+            </button>
+            <label className="btn">
+              Восстановить из файла
+              <input
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) onImport(f)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
           <h2>Мои реквизиты</h2>
         </div>
         <div className="card-body">
@@ -268,7 +276,10 @@ export default function MoreView({
         </div>
       </div>
 
-      <p className="hint">Данные хранятся только на этом устройстве, в браузере. Очистка данных сайта их удалит.</p>
+      <p className="hint">
+        Данные хранятся только на этом устройстве. На iPhone у установленного приложения и у Safari
+        хранилища разные — работайте в одном из них или переносите копией.
+      </p>
     </div>
   )
 }

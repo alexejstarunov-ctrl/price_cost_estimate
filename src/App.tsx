@@ -11,11 +11,13 @@ import {
   type InstallPromptEvent,
 } from './lib/platform'
 import {
+  loadCatalogOrder,
   loadCompany,
   loadCurrentId,
   loadCustomPrices,
   loadEstimates,
   loadTemplates,
+  saveCatalogOrder,
   saveCompany,
   saveCurrentId,
   saveCustomPrices,
@@ -32,7 +34,8 @@ import PrintView from './components/PrintView'
 import PrintRoute from './components/PrintRoute'
 import AddSheet from './components/AddSheet'
 import CustomSheet from './components/CustomSheet'
-import { IconCatalog, IconEstimate, IconMaterials, IconMore } from './components/Icons'
+import EstimatesSheet from './components/EstimatesSheet'
+import { IconCatalog, IconChevron, IconEstimate, IconMaterials, IconMore } from './components/Icons'
 
 export type InstallMode = 'android' | 'ios' | 'none'
 
@@ -81,6 +84,8 @@ function App() {
   const [rawFeed, setRawFeed] = useState<PriceFeed | null>(null)
   const [pending, setPending] = useState<WorkItem | null>(null)
   const [customOpen, setCustomOpen] = useState(false)
+  const [estimatesOpen, setEstimatesOpen] = useState(false)
+  const [order, setOrder] = useState<string[]>(loadCatalogOrder)
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null)
   const [toast, setToast] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -100,6 +105,8 @@ function App() {
 
   useEffect(() => {
     fetchPriceFeed().then(setRawFeed)
+    // Просим браузер не вычищать наше хранилище при нехватке места
+    navigator.storage?.persist?.().catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -130,6 +137,29 @@ function App() {
         : { ...w, price: Math.round(w.price * region.factor) }
     })
   }, [feed.works, estimate.region])
+
+  /** Порядок пользователя поверх базового; неизвестные порядку позиции идут следом в базовом порядке */
+  const orderedCatalog = useMemo(() => {
+    if (order.length === 0) return catalog
+    const index = new Map(order.map((id, i) => [id, i]))
+    const known = catalog.filter((w) => index.has(w.id)).sort((a, b) => index.get(a.id)! - index.get(b.id)!)
+    const unknown = catalog.filter((w) => !index.has(w.id))
+    return [...known, ...unknown]
+  }, [catalog, order])
+
+  const moveBefore = (id: string, beforeId: string | null) => {
+    const seq = orderedCatalog.map((w) => w.id).filter((x) => x !== id)
+    const at = beforeId ? seq.indexOf(beforeId) : seq.length
+    seq.splice(at < 0 ? seq.length : at, 0, id)
+    setOrder(seq)
+    saveCatalogOrder(seq)
+  }
+
+  const resetOrder = () => {
+    setOrder([])
+    saveCatalogOrder([])
+    notify('Порядок расценок сброшен')
+  }
 
   const totals = useMemo(() => calcTotals(estimate), [estimate])
 
@@ -219,22 +249,26 @@ function App() {
     const fresh = newEstimate(estimate.region)
     setEstimates((list) => [fresh, ...list])
     setCurrentId(fresh.id)
+    setEstimatesOpen(false)
     setTab('estimate')
     notify('Новая смета')
   }
 
   const openEstimate = (id: string) => {
     setCurrentId(id)
+    setEstimatesOpen(false)
     setTab('estimate')
   }
 
   const deleteEstimate = (id: string) => {
+    const title = estimates.find((e) => e.id === id)?.title
     setEstimates((list) => {
       const next = list.filter((e) => e.id !== id)
       if (next.length === 0) next.push(newEstimate(estimate.region))
       if (id === currentId) setCurrentId(next[0].id)
       return next
     })
+    notify(title ? `Удалена смета «${title}»` : 'Смета удалена')
   }
 
   const saveAsTemplate = (name: string) => {
@@ -280,6 +314,83 @@ function App() {
     saveCompany(info)
   }
 
+  const exportBackup = async () => {
+    const data = {
+      app: 'price_cost_estimate',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      estimates,
+      templates,
+      custom,
+      company,
+      catalogOrder: order,
+    }
+    const json = JSON.stringify(data, null, 2)
+    const name = `smeta-backup-${new Date().toISOString().slice(0, 10)}.json`
+    const file = new File([json], name, { type: 'application/json' })
+
+    // В установленном на iPhone приложении скачивание не работает, а «Поделиться» даёт «Сохранить в Файлы»
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Резервная копия смет' })
+        return
+      } catch {
+        // отменили системный диалог — попробуем обычное скачивание
+      }
+    }
+    const url = URL.createObjectURL(file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    notify('Копия скачана')
+  }
+
+  const importBackup = async (file: File) => {
+    try {
+      const data = JSON.parse(await file.text()) as Partial<{
+        app: string
+        estimates: Estimate[]
+        templates: EstimateTemplate[]
+        custom: WorkItem[]
+        company: CompanyInfo
+        catalogOrder: string[]
+      }>
+      if (data.app !== 'price_cost_estimate' || !Array.isArray(data.estimates)) throw new Error('not a backup')
+
+      const merged = new Map(estimates.map((e) => [e.id, e]))
+      let added = 0
+      for (const e of data.estimates) {
+        if (!e?.id || !Array.isArray(e.lines)) continue
+        const existing = merged.get(e.id)
+        if (!existing) added++
+        if (!existing || existing.updatedAt < e.updatedAt) merged.set(e.id, e)
+      }
+      setEstimates([...merged.values()])
+
+      if (Array.isArray(data.templates)) {
+        const t = new Map([...templates, ...data.templates].map((x) => [x.id, x]))
+        const next = [...t.values()]
+        setTemplates(next)
+        saveTemplates(next)
+      }
+      if (Array.isArray(data.custom)) {
+        saveCustom([...new Map([...custom, ...data.custom].map((x) => [x.id, x])).values()])
+      }
+      if (data.company && !company.name) updateCompany(data.company)
+      if (Array.isArray(data.catalogOrder) && order.length === 0 && data.catalogOrder.length > 0) {
+        setOrder(data.catalogOrder)
+        saveCatalogOrder(data.catalogOrder)
+      }
+      notify(added > 0 ? `Восстановлено смет: ${added}` : 'Все сметы из копии уже на месте')
+    } catch {
+      notify('Это не резервная копия приложения')
+    }
+  }
+
   const openPdf = () => {
     if (isIos() && isStandalone()) {
       window.open(printUrl({ estimate, company }), '_blank')
@@ -315,14 +426,16 @@ function App() {
   return (
     <>
       <header className="topbar no-print">
-        <div className="topbar-title">
-          <h1>{estimate.title || 'Новая смета'}</h1>
-          <span className="sub">
-            {estimate.lines.length > 0
-              ? `${estimate.lines.length} поз.`
-              : 'Добавьте работы из расценок'}
+        <button className="topbar-title" onClick={() => setEstimatesOpen(true)} aria-label="Мои сметы">
+          <span className="topbar-text">
+            <h1>{estimate.title || 'Новая смета'}</h1>
+            <span className="sub">
+              {estimates.length > 1 ? `${estimates.length} смет · ` : ''}
+              {estimate.lines.length > 0 ? `${estimate.lines.length} поз.` : 'нажмите, чтобы переключить'}
+            </span>
           </span>
-        </div>
+          <IconChevron />
+        </button>
         <div className="topbar-total">{formatRub(totals.total)}</div>
       </header>
 
@@ -342,18 +455,22 @@ function App() {
           onPdf={openPdf}
           onSaveTemplate={saveAsTemplate}
           onNew={createEstimate}
+          onDelete={() => deleteEstimate(estimate.id)}
           notify={notify}
         />
       )}
 
       {tab === 'catalog' && (
         <CatalogView
-          works={catalog}
+          works={orderedCatalog}
           region={estimate.region}
           inEstimate={inEstimate}
+          hasCustomOrder={order.length > 0}
           onRegion={(region) => update({ region })}
           onPick={setPending}
           onCustom={() => setCustomOpen(true)}
+          onMoveBefore={moveBefore}
+          onResetOrder={resetOrder}
         />
       )}
 
@@ -383,6 +500,8 @@ function App() {
           onUpsertCustom={upsertCustom}
           onRemoveCustom={removeCustom}
           onUpdateCompany={updateCompany}
+          onExport={exportBackup}
+          onImport={importBackup}
         />
       )}
 
@@ -397,6 +516,17 @@ function App() {
       )}
 
       {customOpen && <CustomSheet onClose={() => setCustomOpen(false)} onAdd={addCustomLine} />}
+
+      {estimatesOpen && (
+        <EstimatesSheet
+          estimates={estimates}
+          currentId={estimate.id}
+          onClose={() => setEstimatesOpen(false)}
+          onOpen={openEstimate}
+          onNew={createEstimate}
+          onDelete={deleteEstimate}
+        />
+      )}
 
       {toast && (
         <div className="toast no-print" role="status">

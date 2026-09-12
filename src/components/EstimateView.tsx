@@ -23,6 +23,7 @@ type Props = {
   onPdf: () => void
   onSaveTemplate: (name: string) => void
   onNew: () => void
+  onDelete: () => void
   notify: (message: string) => void
 }
 
@@ -43,6 +44,7 @@ export default function EstimateView({
   onPdf,
   onSaveTemplate,
   onNew,
+  onDelete,
   notify,
 }: Props) {
   const [showClient, setShowClient] = useState(Boolean(estimate.client || estimate.address))
@@ -289,10 +291,24 @@ export default function EstimateView({
           )}
 
           <p className="hint">
-            «Скачать PDF» открывает печать — выберите «Сохранить как PDF». Смета сохраняется сама.
+            «Скачать PDF» открывает печать — выберите «Сохранить как PDF».
           </p>
         </>
       )}
+
+      <p className="hint saved-note" role="status">
+        ✓ Сохранено автоматически,{' '}
+        {new Date(estimate.updatedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+        {' · '}все сметы — в списке по нажатию на название вверху
+      </p>
+
+      <ConfirmButton
+        className="btn btn-block btn-danger-outline"
+        armedLabel="Точно удалить эту смету целиком?"
+        onConfirm={onDelete}
+      >
+        Удалить смету
+      </ConfirmButton>
     </div>
   )
 }

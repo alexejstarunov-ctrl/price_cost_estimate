@@ -6,6 +6,7 @@ const KEYS = {
   templates: 'pce.templates',
   customPrices: 'pce.customPrices',
   company: 'pce.company',
+  catalogOrder: 'pce.catalogOrder',
 } as const
 
 export type CompanyInfo = {
@@ -42,6 +43,9 @@ export const saveTemplates = (v: EstimateTemplate[]) => write(KEYS.templates, v)
 
 export const loadCustomPrices = () => read<WorkItem[]>(KEYS.customPrices, [])
 export const saveCustomPrices = (v: WorkItem[]) => write(KEYS.customPrices, v)
+
+export const loadCatalogOrder = () => read<string[]>(KEYS.catalogOrder, [])
+export const saveCatalogOrder = (v: string[]) => write(KEYS.catalogOrder, v)
 
 export const loadCompany = () =>
   read<CompanyInfo>(KEYS.company, { name: '', phone: '', note: '' })

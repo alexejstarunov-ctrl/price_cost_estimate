@@ -44,6 +44,18 @@ export const IconMore = () => (
   </svg>
 )
 
+export const IconGrip = () => (
+  <svg {...base} width={20} height={20}>
+    <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" strokeWidth={3} />
+  </svg>
+)
+
+export const IconChevron = () => (
+  <svg {...base} width={16} height={16}>
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+)
+
 export const IconClose = () => (
   <svg {...base} width={18} height={18}>
     <path d="M6 6l12 12M18 6L6 18" />
