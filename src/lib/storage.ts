@@ -2,6 +2,7 @@ import type { Estimate, EstimateTemplate, WorkItem } from '../types'
 
 const KEYS = {
   estimates: 'pce.estimates',
+  currentId: 'pce.currentId',
   templates: 'pce.templates',
   customPrices: 'pce.customPrices',
   company: 'pce.company',
@@ -32,6 +33,9 @@ function write(key: string, value: unknown): void {
 
 export const loadEstimates = () => read<Estimate[]>(KEYS.estimates, [])
 export const saveEstimates = (v: Estimate[]) => write(KEYS.estimates, v)
+
+export const loadCurrentId = () => read<string | null>(KEYS.currentId, null)
+export const saveCurrentId = (v: string) => write(KEYS.currentId, v)
 
 export const loadTemplates = () => read<EstimateTemplate[]>(KEYS.templates, [])
 export const saveTemplates = (v: EstimateTemplate[]) => write(KEYS.templates, v)

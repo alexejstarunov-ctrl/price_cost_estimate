@@ -56,6 +56,7 @@ export async function fetchPriceFeed(): Promise<PriceFeed | null> {
 export const SOURCE_LABELS: Record<PriceSource, string> = {
   base: 'база',
   manual: 'своя цена',
+  region: 'прайсы города',
   profi: 'Профи.ру',
   avito: 'Авито',
   yandex: 'Яндекс Услуги',

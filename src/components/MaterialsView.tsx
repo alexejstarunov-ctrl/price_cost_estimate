@@ -6,6 +6,7 @@ import NumField from './NumField'
 
 type Props = {
   works: WorkItem[]
+  hasAuto: boolean
   onAddLines: (lines: Omit<EstimateLine, 'id'>[]) => void
 }
 
@@ -20,7 +21,7 @@ const DEFAULTS: MaterialInput = {
   perimeter: 0,
 }
 
-export default function MaterialsView({ works, onAddLines }: Props) {
+export default function MaterialsView({ works, hasAuto, onAddLines }: Props) {
   const [input, setInput] = useState<MaterialInput>(DEFAULTS)
 
   const result = useMemo(() => calcMaterials(input), [input])
@@ -122,9 +123,9 @@ export default function MaterialsView({ works, onAddLines }: Props) {
             </label>
           </div>
 
-          <label className="field">
+          <div className="field">
             <span>Размер плитки, мм</span>
-            <div className="row-3">
+            <div className="row-3 dims">
               <NumField
                 value={input.tileWidth}
                 onChange={(tileWidth) => set({ tileWidth })}
@@ -144,8 +145,12 @@ export default function MaterialsView({ works, onAddLines }: Props) {
                 aria-label="Толщина плитки"
               />
             </div>
-            <div className="hint">ширина × высота × толщина</div>
-          </label>
+            <div className="dims-caption">
+              <span>ширина</span>
+              <span>высота</span>
+              <span>толщина</span>
+            </div>
+          </div>
 
           <div className="row">
             <label className="field">
@@ -211,19 +216,14 @@ export default function MaterialsView({ works, onAddLines }: Props) {
         </div>
       </div>
 
-      <button
-        className="btn btn-primary btn-block"
-        style={{ marginTop: 12 }}
-        onClick={addToEstimate}
-        disabled={input.area <= 0}
-      >
-        Добавить материалы в смету
+      <button className="btn btn-primary btn-block" onClick={addToEstimate} disabled={input.area <= 0}>
+        {hasAuto ? 'Обновить материалы в смете' : 'Добавить материалы в смету'}
       </button>
 
-      <div className="hint" style={{ padding: '12px 4px' }}>
+      <p className="hint">
         Расход клея — по зубу гребёнки для вашего формата плитки, затирки — по формуле
         производителей с запасом 15%. Проверьте по упаковке конкретной смеси.
-      </div>
+      </p>
     </div>
   )
 }

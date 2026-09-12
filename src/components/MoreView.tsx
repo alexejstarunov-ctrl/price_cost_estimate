@@ -1,20 +1,22 @@
 import { useState } from 'react'
-import type { Estimate, EstimateTemplate, Region, Unit, WorkItem } from '../types'
-import { REGION_LABELS, formatDate, formatRub } from '../lib/estimate'
-import { SOURCE_LABELS, type PriceState } from '../lib/prices'
+import type { Estimate, EstimateTemplate, Unit, WorkItem } from '../types'
+import { calcTotals, formatDate, formatRub } from '../lib/estimate'
+import type { PriceState } from '../lib/prices'
 import { uid, type CompanyInfo } from '../lib/storage'
 import { CATEGORIES } from '../data/works'
 import { PRESET_TEMPLATES } from '../data/templates'
 import NumField from './NumField'
+import ConfirmButton from './ConfirmButton'
+import { IconClose } from './Icons'
 
 type Props = {
-  estimate: Estimate
-  saved: Estimate[]
+  currentId: string
+  estimates: Estimate[]
   templates: EstimateTemplate[]
   custom: WorkItem[]
   company: CompanyInfo
   feed: PriceState
-  onUpdate: (patch: Partial<Estimate>) => void
+  onNew: () => void
   onOpen: (id: string) => void
   onDelete: (id: string) => void
   onApplyTemplate: (tpl: EstimateTemplate) => void
@@ -26,14 +28,16 @@ type Props = {
 
 const UNITS: Unit[] = ['м²', 'п.м', 'шт', 'компл', 'меш', 'кг', 'л', 'точка']
 
+const STATUS_LABEL = { ok: 'собрано', blocked: 'блокировка', skipped: 'выключен' } as const
+
 export default function MoreView({
-  estimate,
-  saved,
+  currentId,
+  estimates,
   templates,
   custom,
   company,
   feed,
-  onUpdate,
+  onNew,
   onOpen,
   onDelete,
   onApplyTemplate,
@@ -45,48 +49,112 @@ export default function MoreView({
   const [form, setForm] = useState({ name: '', price: 0, unit: 'м²' as Unit, category: CATEGORIES[1] as string })
 
   const addCustom = () => {
-    const price = form.price
-    if (!form.name.trim() || !(price > 0)) return
+    if (!form.name.trim() || !(form.price > 0)) return
     onUpsertCustom({
       id: `custom-${uid()}`,
       name: form.name.trim(),
       unit: form.unit,
       category: form.category,
-      price,
+      price: form.price,
       source: 'manual',
       updatedAt: new Date().toISOString(),
     })
     setForm({ name: '', price: 0, unit: form.unit, category: form.category })
   }
 
+  const sorted = [...estimates].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+
   return (
     <div className="section no-print">
       <div className="card">
         <div className="card-head">
-          <h2>Регион расценок</h2>
+          <h2>Мои сметы</h2>
+          <button className="btn-ghost" onClick={onNew}>
+            + Новая
+          </button>
         </div>
-        <div className="card-body">
-          <select
-            value={estimate.region}
-            onChange={(e) => onUpdate({ region: e.target.value as Region })}
-          >
-            {Object.entries(REGION_LABELS).map(([k, label]) => (
-              <option key={k} value={k}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <div className="hint">
-            Коэффициент применяется к базовым расценкам. Свои цены не пересчитываются.
-          </div>
+        {sorted.map((s) => {
+          const total = calcTotals(s).total
+          const isCurrent = s.id === currentId
+          return (
+            <div className={`list-item${isCurrent ? ' current' : ''}`} key={s.id}>
+              <button className="list-main" onClick={() => onOpen(s.id)}>
+                <span className="name">
+                  {s.title || 'Без названия'}
+                  {isCurrent && <span className="tag tag-auto">открыта</span>}
+                </span>
+                <span className="meta">
+                  {formatDate(s.updatedAt)} · {s.lines.length} поз. · {formatRub(total)}
+                  {s.client && ` · ${s.client}`}
+                </span>
+              </button>
+              <ConfirmButton
+                className="list-del"
+                armedLabel="Удалить?"
+                onConfirm={() => onDelete(s.id)}
+                aria-label={`Удалить смету ${s.title || 'без названия'}`}
+              >
+                <IconClose />
+              </ConfirmButton>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Типовые объекты</h2>
         </div>
+        {PRESET_TEMPLATES.map((t) => (
+          <button className="cat-item" key={t.id} onClick={() => onApplyTemplate(t)}>
+            <span className="name">
+              {t.name}
+              <span className="meta">{t.lines.length} позиций · добавить в текущую смету</span>
+            </span>
+          </button>
+        ))}
+        <p className="hint card-hint">Объёмы усреднённые — поправьте под замер. Цены подставятся из каталога.</p>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Мои шаблоны</h2>
+        </div>
+        {templates.length === 0 ? (
+          <p className="hint card-hint">
+            Соберите смету и нажмите «Сохранить как шаблон» — свой набор работ будет добавляться одним нажатием.
+          </p>
+        ) : (
+          templates.map((t) => (
+            <div className="list-item" key={t.id}>
+              <button className="list-main" onClick={() => onApplyTemplate(t)}>
+                <span className="name">{t.name}</span>
+                <span className="meta">{t.lines.length} поз. · добавить в текущую смету</span>
+              </button>
+              <ConfirmButton
+                className="list-del"
+                armedLabel="Удалить?"
+                onConfirm={() => onDeleteTemplate(t.id)}
+                aria-label={`Удалить шаблон ${t.name}`}
+              >
+                <IconClose />
+              </ConfirmButton>
+            </div>
+          ))
+        )}
       </div>
 
       <div className="card">
         <div className="card-head">
           <h2>Свои расценки</h2>
         </div>
-        <div className="card-body">
+        <form
+          className="card-body"
+          onSubmit={(e) => {
+            e.preventDefault()
+            addCustom()
+          }}
+        >
           <label className="field">
             <span>Наименование</span>
             <input
@@ -98,18 +166,11 @@ export default function MoreView({
           <div className="row">
             <label className="field">
               <span>Цена, ₽</span>
-              <NumField
-                value={form.price}
-                onChange={(price) => setForm({ ...form, price })}
-                decimals={0}
-              />
+              <NumField value={form.price} onChange={(price) => setForm({ ...form, price })} decimals={0} />
             </label>
             <label className="field">
               <span>Единица</span>
-              <select
-                value={form.unit}
-                onChange={(e) => setForm({ ...form, unit: e.target.value as Unit })}
-              >
+              <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value as Unit })}>
                 {UNITS.map((u) => (
                   <option key={u}>{u}</option>
                 ))}
@@ -118,114 +179,35 @@ export default function MoreView({
           </div>
           <label className="field">
             <span>Раздел</span>
-            <select
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-            >
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
               {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
           </label>
-          <button className="btn btn-primary btn-block" onClick={addCustom}>
+          <button type="submit" className="btn btn-primary btn-block" disabled={!form.name.trim() || !(form.price > 0)}>
             Добавить в каталог
           </button>
-        </div>
+        </form>
 
-        {custom.length > 0 &&
-          custom.map((c) => (
-            <div className="cat-item" key={c.id}>
-              <span className="name">
-                {c.name}
-                <span className="meta">
-                  за 1 {c.unit} · {c.category}
-                </span>
+        {custom.map((c) => (
+          <div className="list-item" key={c.id}>
+            <div className="list-main">
+              <span className="name">{c.name}</span>
+              <span className="meta">
+                {formatRub(c.price)} за {c.unit} · {c.category}
               </span>
-              <span className="price">{formatRub(c.price)}</span>
-              <button className="btn-danger" onClick={() => onRemoveCustom(c.id)}>
-                ✕
-              </button>
             </div>
-          ))}
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h2>Типовые объекты</h2>
-        </div>
-        {PRESET_TEMPLATES.map((t) => (
-          <button className="cat-item" key={t.id} onClick={() => onApplyTemplate(t)}>
-            <span className="name">
-              {t.name}
-              <span className="meta">{t.lines.length} позиций · нажмите, чтобы добавить</span>
-            </span>
-          </button>
+            <ConfirmButton
+              className="list-del"
+              armedLabel="Удалить?"
+              onConfirm={() => onRemoveCustom(c.id)}
+              aria-label={`Удалить расценку ${c.name}`}
+            >
+              <IconClose />
+            </ConfirmButton>
+          </div>
         ))}
-        <div className="card-body">
-          <div className="hint">
-            Объёмы усреднённые — поправьте под замер. Цены подставятся из каталога.
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h2>Мои шаблоны</h2>
-        </div>
-        {templates.length === 0 ? (
-          <div className="card-body">
-            <div className="hint">
-              Соберите смету и нажмите «В шаблоны» — свой типовой набор работ можно будет
-              добавлять одним нажатием.
-            </div>
-          </div>
-        ) : (
-          templates.map((t) => (
-            <div className="cat-item" key={t.id}>
-              <button
-                className="name"
-                style={{ background: 'none', border: 0, textAlign: 'left', padding: 0 }}
-                onClick={() => onApplyTemplate(t)}
-              >
-                {t.name}
-                <span className="meta">{t.lines.length} поз. · нажмите, чтобы добавить</span>
-              </button>
-              <button className="btn-danger" onClick={() => onDeleteTemplate(t.id)}>
-                ✕
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h2>Мои сметы</h2>
-        </div>
-        {saved.length === 0 ? (
-          <div className="card-body">
-            <div className="hint">Сохранённые сметы появятся здесь.</div>
-          </div>
-        ) : (
-          saved.map((s) => (
-            <div className="cat-item" key={s.id}>
-              <button
-                className="name"
-                style={{ background: 'none', border: 0, textAlign: 'left', padding: 0 }}
-                onClick={() => onOpen(s.id)}
-              >
-                {s.title}
-                <span className="meta">
-                  {formatDate(s.updatedAt)} · {s.lines.length} поз.
-                  {s.client && ` · ${s.client}`}
-                </span>
-              </button>
-              <button className="btn-danger" onClick={() => onDelete(s.id)}>
-                ✕
-              </button>
-            </div>
-          ))
-        )}
       </div>
 
       <div className="card">
@@ -234,7 +216,7 @@ export default function MoreView({
         </div>
         <div className="card-body">
           <label className="field">
-            <span>Имя / компания</span>
+            <span>Имя или компания</span>
             <input
               value={company.name}
               onChange={(e) => onUpdateCompany({ ...company, name: e.target.value })}
@@ -250,7 +232,7 @@ export default function MoreView({
               inputMode="tel"
             />
           </label>
-          <div className="hint">Подставляется в PDF как исполнитель.</div>
+          <p className="hint">Подставляется в PDF как исполнитель.</p>
         </div>
       </div>
 
@@ -261,30 +243,25 @@ export default function MoreView({
         <div className="card-body">
           {feed.feedDate ? (
             <>
-              <div style={{ marginBottom: 8 }}>
-                Обновлено: {new Date(feed.feedDate).toLocaleString('ru-RU')}
-              </div>
+              <p className="hint" style={{ marginTop: 0 }}>
+                Проверено {new Date(feed.feedDate).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+              </p>
               {feed.sources.map((s) => (
                 <div className="totals-row" key={s.name}>
                   <span>{s.name}</span>
-                  <span>
-                    {s.status === 'ok' ? '✓ собрано' : s.status === 'blocked' ? '✕ блокировка' : '– пропущен'}
-                  </span>
+                  <span className={`status status-${s.status}`}>{STATUS_LABEL[s.status]}</span>
                 </div>
               ))}
             </>
           ) : (
-            <div className="hint">
-              Фид цен ещё не собран — приложение работает на встроенной базе расценок
-              ({Object.values(SOURCE_LABELS)[0]}).
-            </div>
+            <p className="hint" style={{ marginTop: 0 }}>
+              Приложение работает на встроенной базе расценок.
+            </p>
           )}
         </div>
       </div>
 
-      <div className="hint" style={{ padding: '14px 4px' }}>
-        Данные хранятся только на этом устройстве, в браузере. Очистка данных сайта их удалит.
-      </div>
+      <p className="hint">Данные хранятся только на этом устройстве, в браузере. Очистка данных сайта их удалит.</p>
     </div>
   )
 }

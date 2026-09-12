@@ -1,8 +1,9 @@
 export type Unit = 'м²' | 'п.м' | 'шт' | 'компл' | 'меш' | 'кг' | 'л' | 'точка'
 
-export type PriceSource = 'base' | 'manual' | 'profi' | 'avito' | 'yandex'
+export type PriceSource = 'base' | 'manual' | 'region' | 'profi' | 'avito' | 'yandex'
 
-export type Region = 'msk' | 'spb' | 'million' | 'small'
+/** Идентификатор региона из src/data/regions.ts */
+export type Region = string
 
 export type WorkItem = {
   id: string

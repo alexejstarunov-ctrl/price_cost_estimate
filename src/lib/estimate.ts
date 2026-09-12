@@ -1,19 +1,4 @@
-import type { Estimate, EstimateLine, Region } from '../types'
-
-/** Региональные коэффициенты к московским расценкам */
-export const REGION_FACTOR: Record<Region, number> = {
-  msk: 1,
-  spb: 0.78,
-  million: 0.68,
-  small: 0.55,
-}
-
-export const REGION_LABELS: Record<Region, string> = {
-  msk: 'Москва и МО',
-  spb: 'СПб, Сочи, Крым',
-  million: 'Города-миллионники',
-  small: 'Райцентры и малые города',
-}
+import type { Estimate, EstimateLine } from '../types'
 
 export type Totals = {
   works: number

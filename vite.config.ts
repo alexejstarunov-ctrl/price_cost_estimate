@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'Смета на укладку плитки',
         short_name: 'Смета плитки',
         description: 'Быстрый расчёт стоимости работ и материалов по укладке плитки',
-        theme_color: '#1b1f24',
-        background_color: '#ffffff',
+        theme_color: '#17191C',
+        background_color: '#F1F2F0',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/price_cost_estimate/',
@@ -27,6 +27,22 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,json}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-css', expiration: { maxEntries: 4, maxAgeSeconds: 31536000 } },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-files',
+              expiration: { maxEntries: 12, maxAgeSeconds: 31536000 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

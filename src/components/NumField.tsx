@@ -6,9 +6,12 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 
   min?: number
   /** Максимум знаков после запятой */
   decimals?: number
+  /** Показывать ноль пустым полем — для обязательных значений вроде количества */
+  blankZero?: boolean
 }
 
-const display = (v: number): string => (Number.isFinite(v) ? String(v).replace('.', ',') : '')
+const display = (v: number, blankZero = false): string =>
+  !Number.isFinite(v) || (blankZero && v === 0) ? '' : String(v).replace('.', ',')
 
 /**
  * Числовое поле, которое не залипает на нуле.
@@ -18,13 +21,22 @@ const display = (v: number): string => (Number.isFinite(v) ? String(v).replace('
  * type="number" для этого не годится: промежуточное «12.» он считает
  * невалидным и отдаёт пустую строку, из-за чего десятичные ввести нельзя.
  */
-export default function NumField({ value, onChange, min = 0, decimals = 2, onFocus, onBlur, ...rest }: Props) {
-  const [draft, setDraft] = useState(() => display(value))
+export default function NumField({
+  value,
+  onChange,
+  min = 0,
+  decimals = 2,
+  blankZero = false,
+  onFocus,
+  onBlur,
+  ...rest
+}: Props) {
+  const [draft, setDraft] = useState(() => display(value, blankZero))
   const focused = useRef(false)
 
   useEffect(() => {
-    if (!focused.current) setDraft(display(value))
-  }, [value])
+    if (!focused.current) setDraft(display(value, blankZero))
+  }, [value, blankZero])
 
   const pattern = min < 0 ? /^-?\d*[.,]?\d*$/ : /^\d*[.,]?\d*$/
 
@@ -55,7 +67,7 @@ export default function NumField({ value, onChange, min = 0, decimals = 2, onFoc
       }}
       onBlur={(e) => {
         focused.current = false
-        setDraft(display(value))
+        setDraft(display(value, blankZero))
         onBlur?.(e)
       }}
     />
