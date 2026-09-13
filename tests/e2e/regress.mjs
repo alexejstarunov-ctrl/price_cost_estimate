@@ -158,6 +158,7 @@ const rowOf = (text) => page.locator('.cat-item').filter({ hasText: text }).firs
 const priceOf = async (text) => (await rowOf(text).locator('.price').innerText()).replace(/\s/g, '')
 await rowOf('Грунтовка основания').locator('.cat-edit').click(); await page.waitForSelector('.sheet')
 check('редактор позиции открылся', (await page.locator('#edit-title').innerText()).includes('Изменить'))
+await wait(350)
 await page.screenshot({ path: `${OUT}/r15-edit-sheet.png` })
 await page.locator('.sheet input[aria-label="Цена"]').fill('200')
 await page.locator('.sheet button[type="submit"]').click(); await wait(250)
