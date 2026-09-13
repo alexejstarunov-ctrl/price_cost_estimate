@@ -1,4 +1,4 @@
-import type { Estimate, EstimateTemplate, WorkItem } from '../types'
+import type { Estimate, EstimateTemplate, Unit, WorkItem } from '../types'
 
 const KEYS = {
   estimates: 'pce.estimates',
@@ -8,6 +8,7 @@ const KEYS = {
   company: 'pce.company',
   catalogOrder: 'pce.catalogOrder',
   catalogLayout: 'pce.catalogLayout',
+  catalogEdits: 'pce.catalogEdits',
 } as const
 
 export type CompanyInfo = {
@@ -75,3 +76,10 @@ export const saveCompany = (v: CompanyInfo) => write(KEYS.company, v)
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10)
 }
+
+/** Правки базовых позиций прайса и скрытые позиции */
+export type ItemEdit = { name?: string; unit?: Unit; price?: number }
+export type CatalogEdits = { edits: Record<string, ItemEdit>; hidden: string[] }
+export const EMPTY_EDITS: CatalogEdits = { edits: {}, hidden: [] }
+export const loadCatalogEdits = (): CatalogEdits => ({ ...EMPTY_EDITS, ...read<Partial<CatalogEdits>>(KEYS.catalogEdits, {}) })
+export const saveCatalogEdits = (v: CatalogEdits) => write(KEYS.catalogEdits, v)

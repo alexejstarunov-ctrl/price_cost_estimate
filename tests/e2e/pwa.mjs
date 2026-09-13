@@ -64,7 +64,7 @@ const found = page.locator('.cat-item').filter({ hasText: 'Ceresit' })
 check('запомненная позиция в каталоге', (await found.count()) === 1)
 check('помечена «своя цена»', (await found.locator('.meta').innerText()).includes('своя цена'))
 await page.locator('.catalog-bar input').fill('')
-check('в каталоге есть кнопка «своя позиция»', (await page.locator('.btn-dashed').filter({ hasText: 'своя позиция' }).count()) === 1)
+check('в каталоге есть кнопки «в прайс» и «своя позиция»', (await page.locator('.btn-dashed').filter({ hasText: 'своя позиция' }).count()) === 1 && (await page.locator('.btn-dashed').filter({ hasText: 'В прайс' }).count()) === 1)
 
 await page.locator('.btn-dashed').filter({ hasText: 'своя позиция' }).click()
 await page.waitForSelector('.sheet')

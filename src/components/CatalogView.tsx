@@ -3,7 +3,7 @@ import type { WorkItem } from '../types'
 import { formatRub } from '../lib/estimate'
 import { SOURCE_LABELS } from '../lib/prices'
 import { REGIONS } from '../data/regions'
-import { IconChevron, IconGrip } from './Icons'
+import { IconChevron, IconEdit, IconGrip } from './Icons'
 
 type Props = {
   works: WorkItem[]
@@ -19,6 +19,10 @@ type Props = {
   onMoveCategory: (category: string, dir: -1 | 1) => void
   onToggleCollapse: (category: string) => void
   onResetLayout: () => void
+  onEdit: (item: WorkItem) => void
+  onAddToPrice: () => void
+  hiddenCount: number
+  onUnhide: () => void
 }
 
 const normalize = (s: string) => s.toLowerCase().replace(/ё/g, 'е')
@@ -45,6 +49,10 @@ export default function CatalogView({
   onMoveCategory,
   onToggleCollapse,
   onResetLayout,
+  onEdit,
+  onAddToPrice,
+  hiddenCount,
+  onUnhide,
 }: Props) {
   const [query, setQuery] = useState('')
   const [reorder, setReorder] = useState(false)
@@ -268,13 +276,8 @@ export default function CatalogView({
                     }
 
                     return (
-                      <button
-                        className="cat-item"
-                        data-id={item.id}
-                        data-cat={section.category}
-                        key={item.id}
-                        onClick={() => onPick(item)}
-                      >
+                      <div className="cat-item pickable" data-id={item.id} data-cat={section.category} key={item.id}>
+                        <button className="cat-main" onClick={() => onPick(item)}>
                         <span className="name">
                           {item.name}
                           <span className="meta">
@@ -295,7 +298,11 @@ export default function CatalogView({
                           {formatRub(item.price)}
                           {count && <span className="in-estimate">в смете{count > 1 ? ` ×${count}` : ''}</span>}
                         </span>
-                      </button>
+                        </button>
+                        <button className="cat-edit" onClick={() => onEdit(item)} aria-label={`Изменить: ${item.name}`}>
+                          <IconEdit />
+                        </button>
+                      </div>
                     )
                   })}
               </div>
@@ -303,15 +310,30 @@ export default function CatalogView({
           })
         )}
 
-        {!reorder && sections.length > 0 && (
-          <button className="btn btn-block btn-dashed" onClick={onCustom}>
-            + Нет в списке — своя позиция с ценой
-          </button>
+        {!reorder && (
+          <div className="btn-row">
+            <button className="btn btn-dashed" onClick={onAddToPrice}>
+              + В прайс
+            </button>
+            <button className="btn btn-dashed" onClick={onCustom}>
+              + Своя позиция в смету
+            </button>
+          </div>
+        )}
+
+        {!reorder && hiddenCount > 0 && (
+          <p className="hint hidden-note">
+            Скрыто позиций: {hiddenCount} ·
+            <button className="btn-ghost" onClick={onUnhide}>
+              Показать
+            </button>
+          </p>
         )}
 
         {!reorder && (
           <p className="hint">
-            Средние рыночные ориентиры, не нормативы. Цену можно поправить при добавлении и прямо в смете.
+            Средние рыночные ориентиры, не нормативы. Карандаш у позиции — изменить цену, название или
+            скрыть; цену можно поправить и при добавлении, и прямо в смете.
           </p>
         )}
       </div>

@@ -927,6 +927,66 @@ select:focus-visible {
   color: var(--ok);
 }
 
+/* Строка каталога: основная кнопка + карандаш */
+.cat-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px 12px 14px;
+  background: none;
+  border: 0;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.cat-main:active {
+  background: var(--surface-2);
+}
+
+.cat-item.pickable {
+  padding: 0 4px 0 0;
+  gap: 0;
+}
+
+.cat-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-faint);
+}
+
+.cat-edit:active {
+  color: var(--cobalt);
+  background: var(--surface-2);
+}
+
+.hidden-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.sheet-actions {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.sheet-actions .btn-danger-outline {
+  margin-top: 0;
+}
+
 /* ---------- Списки во вкладке «Ещё» ---------- */
 
 .list-item {
@@ -1030,6 +1090,8 @@ select:focus-visible {
 .sheet {
   width: 100%;
   max-width: 860px;
+  max-height: 100%;
+  overflow-y: auto;
   margin: 0 auto;
   padding: 10px 16px calc(16px + var(--safe-b));
   background: var(--surface);
