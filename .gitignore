@@ -6,3 +6,5 @@ dist-ssr
 .vite
 *.tsbuildinfo
 scripts/.cache
+
+tests/e2e/.out

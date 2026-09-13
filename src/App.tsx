@@ -11,21 +11,25 @@ import {
   type InstallPromptEvent,
 } from './lib/platform'
 import {
-  loadCatalogOrder,
+  EMPTY_LAYOUT,
+  isDefaultLayout,
   loadCompany,
   loadCurrentId,
   loadCustomPrices,
   loadEstimates,
+  loadLayout,
   loadTemplates,
-  saveCatalogOrder,
   saveCompany,
   saveCurrentId,
   saveCustomPrices,
   saveEstimates,
+  saveLayout,
   saveTemplates,
   uid,
+  type CatalogLayout,
   type CompanyInfo,
 } from './lib/storage'
+import { CATEGORIES } from './data/works'
 import EstimateView from './components/EstimateView'
 import CatalogView from './components/CatalogView'
 import MaterialsView from './components/MaterialsView'
@@ -85,7 +89,7 @@ function App() {
   const [pending, setPending] = useState<WorkItem | null>(null)
   const [customOpen, setCustomOpen] = useState(false)
   const [estimatesOpen, setEstimatesOpen] = useState(false)
-  const [order, setOrder] = useState<string[]>(loadCatalogOrder)
+  const [layout, setLayout] = useState<CatalogLayout>(loadLayout)
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null)
   const [toast, setToast] = useState('')
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -99,6 +103,7 @@ function App() {
   }, [estimate.id, currentId])
 
   useEffect(() => saveEstimates(estimates), [estimates])
+  useEffect(() => saveLayout(layout), [layout])
   useEffect(() => {
     if (currentId) saveCurrentId(currentId)
   }, [currentId])
@@ -138,26 +143,59 @@ function App() {
     })
   }, [feed.works, estimate.region])
 
-  /** Порядок пользователя поверх базового; неизвестные порядку позиции идут следом в базовом порядке */
+  /** Каталог в раскладке пользователя: перенесённые позиции — в своих разделах, порядок — его */
   const orderedCatalog = useMemo(() => {
-    if (order.length === 0) return catalog
-    const index = new Map(order.map((id, i) => [id, i]))
-    const known = catalog.filter((w) => index.has(w.id)).sort((a, b) => index.get(a.id)! - index.get(b.id)!)
-    const unknown = catalog.filter((w) => !index.has(w.id))
+    const withCategory = catalog.map((w) =>
+      layout.overrides[w.id] ? { ...w, category: layout.overrides[w.id] } : w,
+    )
+    if (layout.itemOrder.length === 0) return withCategory
+    const index = new Map(layout.itemOrder.map((id, i) => [id, i]))
+    const known = withCategory
+      .filter((w) => index.has(w.id))
+      .sort((a, b) => index.get(a.id)! - index.get(b.id)!)
+    const unknown = withCategory.filter((w) => !index.has(w.id))
     return [...known, ...unknown]
-  }, [catalog, order])
+  }, [catalog, layout.itemOrder, layout.overrides])
 
-  const moveBefore = (id: string, beforeId: string | null) => {
+  /** Разделы в порядке пользователя; новые — следом в базовом порядке */
+  const categories = useMemo(() => {
+    const present = new Set(orderedCatalog.map((w) => w.category))
+    const base = [...CATEGORIES, ...[...present].filter((c) => !(CATEGORIES as readonly string[]).includes(c))]
+    const known = layout.categoryOrder.filter((c) => present.has(c))
+    const rest = base.filter((c) => present.has(c) && !known.includes(c))
+    return [...known, ...rest]
+  }, [orderedCatalog, layout.categoryOrder])
+
+  const moveItem = (id: string, beforeId: string | null, category: string) => {
     const seq = orderedCatalog.map((w) => w.id).filter((x) => x !== id)
     const at = beforeId ? seq.indexOf(beforeId) : seq.length
     seq.splice(at < 0 ? seq.length : at, 0, id)
-    setOrder(seq)
-    saveCatalogOrder(seq)
+    const baseCategory = feed.works.find((w) => w.id === id)?.category
+    const overrides = { ...layout.overrides }
+    if (category !== baseCategory) overrides[id] = category
+    else delete overrides[id]
+    setLayout({ ...layout, itemOrder: seq, overrides })
   }
 
-  const resetOrder = () => {
-    setOrder([])
-    saveCatalogOrder([])
+  const moveCategory = (category: string, dir: -1 | 1) => {
+    const seq = [...categories]
+    const i = seq.indexOf(category)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= seq.length) return
+    ;[seq[i], seq[j]] = [seq[j], seq[i]]
+    setLayout({ ...layout, categoryOrder: seq })
+  }
+
+  const toggleCollapsed = (category: string) =>
+    setLayout({
+      ...layout,
+      collapsed: layout.collapsed.includes(category)
+        ? layout.collapsed.filter((c) => c !== category)
+        : [...layout.collapsed, category],
+    })
+
+  const resetLayout = () => {
+    setLayout({ ...EMPTY_LAYOUT, collapsed: layout.collapsed })
     notify('Порядок расценок сброшен')
   }
 
@@ -323,7 +361,7 @@ function App() {
       templates,
       custom,
       company,
-      catalogOrder: order,
+      catalogLayout: layout,
     }
     const json = JSON.stringify(data, null, 2)
     const name = `smeta-backup-${new Date().toISOString().slice(0, 10)}.json`
@@ -358,6 +396,7 @@ function App() {
         custom: WorkItem[]
         company: CompanyInfo
         catalogOrder: string[]
+        catalogLayout: CatalogLayout
       }>
       if (data.app !== 'price_cost_estimate' || !Array.isArray(data.estimates)) throw new Error('not a backup')
 
@@ -381,9 +420,10 @@ function App() {
         saveCustom([...new Map([...custom, ...data.custom].map((x) => [x.id, x])).values()])
       }
       if (data.company && !company.name) updateCompany(data.company)
-      if (Array.isArray(data.catalogOrder) && order.length === 0 && data.catalogOrder.length > 0) {
-        setOrder(data.catalogOrder)
-        saveCatalogOrder(data.catalogOrder)
+      if (isDefaultLayout(layout)) {
+        if (data.catalogLayout) setLayout({ ...EMPTY_LAYOUT, ...data.catalogLayout })
+        else if (Array.isArray(data.catalogOrder) && data.catalogOrder.length > 0)
+          setLayout({ ...EMPTY_LAYOUT, itemOrder: data.catalogOrder })
       }
       notify(added > 0 ? `Восстановлено смет: ${added}` : 'Все сметы из копии уже на месте')
     } catch {
@@ -463,14 +503,18 @@ function App() {
       {tab === 'catalog' && (
         <CatalogView
           works={orderedCatalog}
+          categories={categories}
+          collapsed={layout.collapsed}
           region={estimate.region}
           inEstimate={inEstimate}
-          hasCustomOrder={order.length > 0}
+          hasCustomLayout={!isDefaultLayout(layout)}
           onRegion={(region) => update({ region })}
           onPick={setPending}
           onCustom={() => setCustomOpen(true)}
-          onMoveBefore={moveBefore}
-          onResetOrder={resetOrder}
+          onMoveItem={moveItem}
+          onMoveCategory={moveCategory}
+          onToggleCollapse={toggleCollapsed}
+          onResetLayout={resetLayout}
         />
       )}
 

@@ -7,6 +7,7 @@ const KEYS = {
   customPrices: 'pce.customPrices',
   company: 'pce.company',
   catalogOrder: 'pce.catalogOrder',
+  catalogLayout: 'pce.catalogLayout',
 } as const
 
 export type CompanyInfo = {
@@ -44,8 +45,28 @@ export const saveTemplates = (v: EstimateTemplate[]) => write(KEYS.templates, v)
 export const loadCustomPrices = () => read<WorkItem[]>(KEYS.customPrices, [])
 export const saveCustomPrices = (v: WorkItem[]) => write(KEYS.customPrices, v)
 
-export const loadCatalogOrder = () => read<string[]>(KEYS.catalogOrder, [])
-export const saveCatalogOrder = (v: string[]) => write(KEYS.catalogOrder, v)
+/** Пользовательская раскладка каталога: порядок разделов и позиций, перенесённые позиции, свёрнутые разделы */
+export type CatalogLayout = {
+  itemOrder: string[]
+  categoryOrder: string[]
+  /** id позиции → раздел, куда её перетащили */
+  overrides: Record<string, string>
+  collapsed: string[]
+}
+
+export const EMPTY_LAYOUT: CatalogLayout = { itemOrder: [], categoryOrder: [], overrides: {}, collapsed: [] }
+
+export function loadLayout(): CatalogLayout {
+  const stored = read<Partial<CatalogLayout> | null>(KEYS.catalogLayout, null)
+  if (stored) return { ...EMPTY_LAYOUT, ...stored }
+  // Первая версия хранила только порядок позиций
+  return { ...EMPTY_LAYOUT, itemOrder: read<string[]>(KEYS.catalogOrder, []) }
+}
+
+export const saveLayout = (v: CatalogLayout) => write(KEYS.catalogLayout, v)
+
+export const isDefaultLayout = (l: CatalogLayout): boolean =>
+  l.itemOrder.length === 0 && l.categoryOrder.length === 0 && Object.keys(l.overrides).length === 0
 
 export const loadCompany = () =>
   read<CompanyInfo>(KEYS.company, { name: '', phone: '', note: '' })

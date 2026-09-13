@@ -3,82 +3,86 @@ import type { WorkItem } from '../types'
 import { formatRub } from '../lib/estimate'
 import { SOURCE_LABELS } from '../lib/prices'
 import { REGIONS } from '../data/regions'
-import { IconGrip } from './Icons'
+import { IconChevron, IconGrip } from './Icons'
 
 type Props = {
   works: WorkItem[]
+  categories: string[]
+  collapsed: string[]
   region: string
   inEstimate: Map<string, number>
-  hasCustomOrder: boolean
+  hasCustomLayout: boolean
   onRegion: (region: string) => void
   onPick: (item: WorkItem) => void
   onCustom: () => void
-  onMoveBefore: (id: string, beforeId: string | null) => void
-  onResetOrder: () => void
+  onMoveItem: (id: string, beforeId: string | null, category: string) => void
+  onMoveCategory: (category: string, dir: -1 | 1) => void
+  onToggleCollapse: (category: string) => void
+  onResetLayout: () => void
 }
 
 const normalize = (s: string) => s.toLowerCase().replace(/ё/g, 'е')
 
-/** Соседние позиции одного раздела собираются в одну карточку с заголовком */
-function groupRuns(items: WorkItem[]): { category: string; items: WorkItem[] }[] {
-  const runs: { category: string; items: WorkItem[] }[] = []
-  for (const item of items) {
-    const last = runs[runs.length - 1]
-    if (last && last.category === item.category) last.items.push(item)
-    else runs.push({ category: item.category, items: [item] })
-  }
-  return runs
+const plural = (n: number) => {
+  const m10 = n % 10
+  const m100 = n % 100
+  if (m10 === 1 && m100 !== 11) return `${n} позиция`
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return `${n} позиции`
+  return `${n} позиций`
 }
 
 export default function CatalogView({
   works,
+  categories,
+  collapsed,
   region,
   inEstimate,
-  hasCustomOrder,
+  hasCustomLayout,
   onRegion,
   onPick,
   onCustom,
-  onMoveBefore,
-  onResetOrder,
+  onMoveItem,
+  onMoveCategory,
+  onToggleCollapse,
+  onResetLayout,
 }: Props) {
   const [query, setQuery] = useState('')
   const [reorder, setReorder] = useState(false)
   const [dragId, setDragId] = useState<string | null>(null)
+  const [drop, setDrop] = useState<{ beforeId: string | null; category: string } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const edgeScroll = useRef(0)
   const scrollLoop = useRef<number>()
 
-  const visible = useMemo(() => {
-    const q = normalize(query.trim())
-    return q ? works.filter((w) => normalize(w.name).includes(q)) : works
-  }, [works, query])
+  const q = normalize(query.trim())
 
-  const runs = useMemo(() => groupRuns(visible), [visible])
-
-  const moveUp = (id: string) => {
-    const i = visible.findIndex((w) => w.id === id)
-    if (i > 0) onMoveBefore(id, visible[i - 1].id)
-  }
-
-  const moveDown = (id: string) => {
-    const i = visible.findIndex((w) => w.id === id)
-    if (i >= 0 && i < visible.length - 1) onMoveBefore(id, visible[i + 2]?.id ?? null)
-  }
+  const sections = useMemo(() => {
+    const visible = q ? works.filter((w) => normalize(w.name).includes(q)) : works
+    return categories
+      .map((category) => ({ category, items: visible.filter((w) => w.category === category) }))
+      .filter((s) => s.items.length > 0)
+  }, [works, categories, q])
 
   /** Куда вставить перетаскиваемую строку при данной высоте указателя */
-  const dropTargetAt = (y: number, id: string): string | null | undefined => {
-    const rows = listRef.current?.querySelectorAll<HTMLElement>('[data-id]') ?? []
-    let prev: string | null = null
+  const dropTargetAt = (y: number, id: string) => {
+    const rows = [...(listRef.current?.querySelectorAll<HTMLElement>('[data-id]') ?? [])]
+    const dragged = rows.find((r) => r.dataset.id === id)
+    const draggedIndex = dragged ? rows.indexOf(dragged) : -1
+    const next = draggedIndex >= 0 ? rows[draggedIndex + 1] : undefined
+    const draggedCat = dragged?.dataset.cat
+
     for (const row of rows) {
-      const rowId = row.dataset.id!
-      if (rowId === id) continue
+      if (row === dragged) continue
       const r = row.getBoundingClientRect()
       if (r.top + r.height / 2 > y) {
-        return prev === id ? undefined : rowId
+        // Над собственным соседом в том же разделе — положение не меняется
+        if (row === next && row.dataset.cat === draggedCat) return null
+        return { beforeId: row.dataset.id!, category: row.dataset.cat! }
       }
-      prev = rowId
     }
-    return prev === id ? undefined : null
+    const last = rows[rows.length - 1]
+    if (!last || last === dragged) return null
+    return { beforeId: null, category: last.dataset.cat! }
   }
 
   const stopScrollLoop = () => {
@@ -91,6 +95,7 @@ export default function CatalogView({
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
     setDragId(id)
+    stopScrollLoop()
     const tick = () => {
       if (edgeScroll.current) window.scrollBy(0, edgeScroll.current)
       scrollLoop.current = requestAnimationFrame(tick)
@@ -103,16 +108,22 @@ export default function CatalogView({
     const y = e.clientY
     edgeScroll.current = y < 100 ? -10 : y > window.innerHeight - 100 ? 10 : 0
     const target = dropTargetAt(y, id)
-    if (target !== undefined) {
-      const i = visible.findIndex((w) => w.id === id)
-      const current = visible[i + 1]?.id ?? null
-      if (target !== current) onMoveBefore(id, target)
-    }
+    setDrop((prev) =>
+      prev?.beforeId === target?.beforeId && prev?.category === target?.category ? prev : target,
+    )
   }
 
+  /** Перенос применяется на отпускании: строка не перемонтируется во время drag и не теряет захват указателя */
   const endDrag = () => {
+    if (dragId && drop) onMoveItem(dragId, drop.beforeId, drop.category)
     setDragId(null)
+    setDrop(null)
     stopScrollLoop()
+  }
+
+  const enterReorder = () => {
+    setQuery('')
+    setReorder(true)
   }
 
   return (
@@ -120,7 +131,7 @@ export default function CatalogView({
       {reorder ? (
         <div className="catalog-bar reorder-bar">
           <span className="reorder-title">Порядок расценок</span>
-          <button className="btn-ghost" onClick={onResetOrder} disabled={!hasCustomOrder}>
+          <button className="btn-ghost" onClick={onResetLayout} disabled={!hasCustomLayout}>
             Сбросить
           </button>
           <button className="btn btn-primary" onClick={() => setReorder(false)}>
@@ -143,7 +154,7 @@ export default function CatalogView({
               </option>
             ))}
           </select>
-          <button className="icon-btn" onClick={() => setReorder(true)} aria-label="Изменить порядок" title="Изменить порядок">
+          <button className="icon-btn" onClick={enterReorder} aria-label="Изменить порядок" title="Изменить порядок">
             <IconGrip />
           </button>
         </div>
@@ -151,12 +162,13 @@ export default function CatalogView({
 
       {reorder && (
         <p className="hint reorder-hint">
-          Тяните за рукоятку или нажимайте стрелки. Порядок запоминается на этом устройстве.
+          Разделы — стрелками в заголовке. Позиции — за рукоятку в любое место, в том числе в
+          другой раздел, или стрелками. Свёрнутый раздел позиции не принимает — разверните его.
         </p>
       )}
 
       <div className="section section-tight" ref={listRef}>
-        {runs.length === 0 ? (
+        {sections.length === 0 ? (
           <div className="card">
             <div className="empty">
               <strong>Ничего не найдено</strong>
@@ -167,77 +179,131 @@ export default function CatalogView({
             </div>
           </div>
         ) : (
-          runs.map((run, runIndex) => (
-            <div className="card" key={`${run.category}-${runIndex}`}>
-              <div className="cat-group">{run.category}</div>
-              {run.items.map((item) => {
-                const count = inEstimate.get(item.id)
-                const index = visible.indexOf(item)
+          sections.map((section, si) => {
+            const isCollapsed = !q && collapsed.includes(section.category)
+            const nextSectionFirst = sections[si + 1]?.items[0]?.id ?? null
 
-                if (reorder) {
-                  return (
-                    <div
-                      className={`cat-item reorder${dragId === item.id ? ' dragging' : ''}`}
-                      data-id={item.id}
-                      key={item.id}
-                    >
-                      <span
-                        className="drag-handle"
-                        role="button"
-                        aria-label={`Перетащить: ${item.name}`}
-                        onPointerDown={(e) => startDrag(e, item.id)}
-                        onPointerMove={(e) => onDragMove(e, item.id)}
-                        onPointerUp={endDrag}
-                        onPointerCancel={endDrag}
-                      >
-                        <IconGrip />
-                      </span>
-                      <span className="name">
-                        {item.name}
-                        <span className="meta">{formatRub(item.price)} за {item.unit}</span>
-                      </span>
-                      <span className="reorder-btns">
-                        <button onClick={() => moveUp(item.id)} disabled={index === 0} aria-label="Выше">
-                          ▲
-                        </button>
-                        <button onClick={() => moveDown(item.id)} disabled={index === visible.length - 1} aria-label="Ниже">
-                          ▼
-                        </button>
-                      </span>
-                    </div>
-                  )
-                }
-
-                return (
-                  <button className="cat-item" data-id={item.id} key={item.id} onClick={() => onPick(item)}>
-                    <span className="name">
-                      {item.name}
-                      <span className="meta">
-                        за {item.unit}
-                        {item.range && (
-                          <>
-                            {' · '}рынок{' '}
-                            <span className="mono">
-                              {item.range[0]}–{item.range[1]}
-                            </span>
-                          </>
-                        )}
-                        {item.source !== 'base' && ` · ${SOURCE_LABELS[item.source]}`}
-                        {item.note && ` · ${item.note}`}
-                      </span>
-                    </span>
-                    <span className="price">
-                      {formatRub(item.price)}
-                      {count && <span className="in-estimate">в смете{count > 1 ? ` ×${count}` : ''}</span>}
-                    </span>
+            return (
+              <div
+                className={`card${isCollapsed ? ' collapsed' : ''}${drop && drop.beforeId === null && drop.category === section.category ? ' drop-end' : ''}`}
+                key={section.category}
+              >
+                <div className="cat-head">
+                  <button
+                    className="cat-toggle"
+                    aria-expanded={!isCollapsed}
+                    onClick={() => onToggleCollapse(section.category)}
+                  >
+                    <IconChevron />
+                    <span className="cat-name">{section.category}</span>
+                    <span className="cat-count">{plural(section.items.length)}</span>
                   </button>
-                )
-              })}
-            </div>
-          ))
+                  {reorder && (
+                    <span className="reorder-btns">
+                      <button
+                        onClick={() => onMoveCategory(section.category, -1)}
+                        disabled={si === 0}
+                        aria-label={`Раздел выше: ${section.category}`}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        onClick={() => onMoveCategory(section.category, 1)}
+                        disabled={si === sections.length - 1}
+                        aria-label={`Раздел ниже: ${section.category}`}
+                      >
+                        ▼
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                {!isCollapsed &&
+                  section.items.map((item, idx) => {
+                    const count = inEstimate.get(item.id)
+
+                    if (reorder) {
+                      return (
+                        <div
+                          className={`cat-item reorder${dragId === item.id ? ' dragging' : ''}${drop?.beforeId === item.id ? ' drop-before' : ''}`}
+                          data-id={item.id}
+                          data-cat={section.category}
+                          key={item.id}
+                        >
+                          <span
+                            className="drag-handle"
+                            role="button"
+                            aria-label={`Перетащить: ${item.name}`}
+                            onPointerDown={(e) => startDrag(e, item.id)}
+                            onPointerMove={(e) => onDragMove(e, item.id)}
+                            onPointerUp={endDrag}
+                            onPointerCancel={endDrag}
+                          >
+                            <IconGrip />
+                          </span>
+                          <span className="name">
+                            {item.name}
+                            <span className="meta">{formatRub(item.price)} за {item.unit}</span>
+                          </span>
+                          <span className="reorder-btns">
+                            <button
+                              onClick={() => onMoveItem(item.id, section.items[idx - 1].id, section.category)}
+                              disabled={idx === 0}
+                              aria-label="Выше"
+                            >
+                              ▲
+                            </button>
+                            <button
+                              onClick={() =>
+                                onMoveItem(item.id, section.items[idx + 2]?.id ?? nextSectionFirst, section.category)
+                              }
+                              disabled={idx === section.items.length - 1}
+                              aria-label="Ниже"
+                            >
+                              ▼
+                            </button>
+                          </span>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <button
+                        className="cat-item"
+                        data-id={item.id}
+                        data-cat={section.category}
+                        key={item.id}
+                        onClick={() => onPick(item)}
+                      >
+                        <span className="name">
+                          {item.name}
+                          <span className="meta">
+                            за {item.unit}
+                            {item.range && (
+                              <>
+                                {' · '}рынок{' '}
+                                <span className="mono">
+                                  {item.range[0]}–{item.range[1]}
+                                </span>
+                              </>
+                            )}
+                            {item.source !== 'base' && ` · ${SOURCE_LABELS[item.source]}`}
+                            {item.note && ` · ${item.note}`}
+                          </span>
+                        </span>
+                        <span className="price">
+                          {formatRub(item.price)}
+                          {count && <span className="in-estimate">в смете{count > 1 ? ` ×${count}` : ''}</span>}
+                        </span>
+                      </button>
+                    )
+                  })}
+              </div>
+            )
+          })
         )}
 
-        {!reorder && runs.length > 0 && (
+        {!reorder && sections.length > 0 && (
           <button className="btn btn-block btn-dashed" onClick={onCustom}>
             + Нет в списке — своя позиция с ценой
           </button>
